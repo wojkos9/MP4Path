@@ -24,8 +24,8 @@ class Mp4Parser:
                     n = len(r)
                     f.seek(l, 1)
                     val = f.read(n)
-                    ret = 2*int(val == r), None
-                    f.seek(-l-n, 1)
+                    ret = 2 if val==r else 0, None
+                    f.seek(maxs-l, 1)
                     print(l, "=", r, "?:", ret[0], val)
                     return ret
 
@@ -37,58 +37,61 @@ class Mp4Parser:
                 while 1:
                     n, code2 = unpack(">I4s", f.read(8))
                     nr = 8
-                    print("DISC", n, code2, hex(n))
+                    # print("DISC----------", n, code2)
+                    print("== "+code2.decode("ascii"))
                     if n == 1:
                         n = unpack(">Q", f.read(8))[0]
                         nr = 16
                     elif n < 8:
                         raise Exception()
-                    trav += nr
+                    # trav += nr
+
+                    ofs = n-nr
+                    trav += n
                     
                     if code2 == code:
                         cont=True
                         if opt:
                             print(">>", trav)
+                            print(">>", opt)
                             checkp = f.tell()
                             rc, dat = search_impl(opt, n-nr, 0)
-                            f.seek(checkp, 0)
                             print("<<")
                             if rc != 0:
+                                f.seek(checkp, 0)
                                 print("OPT RC 1")
-                                if dat:
-                                    return 2, dat
-                                else:
-                                    return 2, n
                             else:
+                                f.seek(checkp + n-nr, 0)
                                 cont = False
                         if cont:
                             print(">")
+                            print(">", code)
                             rc, dat = search_impl(li, n-nr, i+1)
                             if rc == 1:
-                                if dat:
-                                    return rc, dat
-                                else:
-                                    return rc, n
+                                return rc, dat
                             elif rc == 2:
-                                i += 1
-                                rc, dat = search_impl(li, n-nr, i+1)
-                                if rc == 1:
-                                    if dat:
-                                        return rc, dat
-                                    else:
-                                        return rc, n
-                            
-                    ofs = n-nr
-                    trav += ofs
-                    print(trav, "<", maxs)
-                    if trav >= maxs:
-                        print("<", code2, "S("+str(code)+")")
+                                return 1, dat
+                    else:
+                        f.seek(ofs, 1)
+                    
+                    if trav == maxs:
+                        a = f.read(16)
+                        f.seek(-16, 1)
+                        print("PEEK", a)
+                        print("OVER", trav, "==", maxs)
+                        # print("<", code2, "S("+str(code)+")")
                         break
-                    print("Seek", ofs, "===>", code)
-
-                    f.seek(ofs, 1)
+                    elif trav > maxs:
+                        raise Exception("SIZE ERROR %d > %d" % (trav, maxs))
+                    else:
+                        pass
+                        # print(trav, "<", maxs)
+                    print("Seek", ofs, "--->", code)
+                    
+                    
                 return 0, None
             else:
+                print("FOUNDFOUND", li[-1])
                 return 1, None
         def parse_path(p: str):
             tok0 = p.split()
@@ -121,11 +124,11 @@ with open("vid.mp4", "rb") as f:
     par = Mp4Parser(f)
     maxs = os.path.getsize(f.name)
     print("MAX", maxs)
-    rc, dat = par.search("moov trak[mdia hdlr[8=soun]] mdia minf stbl stss", maxs)
+    rc, dat = par.search("moov trak mdia[hdlr[8=vide]] minf stbl stss", maxs)
+    # rc, dat = par.search("moov trak[mdia hdlr[8=vide]] mdia minf stbl stss", maxs)
     if rc:
         samp = f.read(16)
         f.seek(-16, 1)
         print(samp)
-        print("+"+str(dat-16))
     else:
         print("FAIL")
