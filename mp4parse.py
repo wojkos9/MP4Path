@@ -50,7 +50,7 @@ class Mp4Parser:
                         if opt:
                             print(">>", trav)
                             checkp = f.tell()
-                            rc, dat = search_impl(opt, n, 0)
+                            rc, dat = search_impl(opt, n-nr, 0)
                             f.seek(checkp, 0)
                             print("<<")
                             if rc != 0:
@@ -58,20 +58,20 @@ class Mp4Parser:
                                 if dat:
                                     return 2, dat
                                 else:
-                                    # f.seek(-nr, 1)
                                     return 2, n
                             else:
                                 cont = False
                         if cont:
                             print(">")
-                            rc, dat = search_impl(li, n, i+1)
+                            rc, dat = search_impl(li, n-nr, i+1)
                             if rc == 1:
                                 if dat:
                                     return rc, dat
                                 else:
                                     return rc, n
                             elif rc == 2:
-                                rc, dat = search_impl(li, n, i+2)
+                                i += 1
+                                rc, dat = search_impl(li, n-nr, i+1)
                                 if rc == 1:
                                     if dat:
                                         return rc, dat
@@ -80,10 +80,12 @@ class Mp4Parser:
                             
                     ofs = n-nr
                     trav += ofs
+                    print(trav, "<", maxs)
                     if trav >= maxs:
-                        print("<", code2)
+                        print("<", code2, "S("+str(code)+")")
                         break
                     print("Seek", ofs, "===>", code)
+
                     f.seek(ofs, 1)
                 return 0, None
             else:
@@ -111,13 +113,7 @@ class Mp4Parser:
             return tok
 
         pp = parse_path(pat)
-                
-        # mit = re.finditer("([a-z]+)(?:\[(.*?)\])?", pat)
         rc, dat = search_impl(pp, maxs)
-        if rc != 0:
-            print(dat)
-            
-            print(f.read(16))
         return rc, dat
 
 
@@ -125,5 +121,11 @@ with open("vid.mp4", "rb") as f:
     par = Mp4Parser(f)
     maxs = os.path.getsize(f.name)
     print("MAX", maxs)
-    rc, dat = par.search("moov trak[mdia hdlr[8=soun]] mdia minf stbl stts", maxs)
-    print(dat)
+    rc, dat = par.search("moov trak[mdia hdlr[8=soun]] mdia minf stbl stss", maxs)
+    if rc:
+        samp = f.read(16)
+        f.seek(-16, 1)
+        print(samp)
+        print("+"+str(dat-16))
+    else:
+        print("FAIL")
