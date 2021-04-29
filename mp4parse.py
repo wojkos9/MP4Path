@@ -3,10 +3,9 @@ from itertools import tee
 from functools import reduce
 from struct import unpack
 import os
-q = 0
+import sys
 
 class Mp4Parser:
-    SUCC=1
 
     def __init__(self, f):
         self.f = f
@@ -37,14 +36,13 @@ class Mp4Parser:
                 while 1:
                     n, code2 = unpack(">I4s", f.read(8))
                     nr = 8
-                    # print("DISC----------", n, code2)
+
                     print("== "+code2.decode("ascii"))
                     if n == 1:
                         n = unpack(">Q", f.read(8))[0]
                         nr = 16
                     elif n < 8:
                         raise Exception()
-                    # trav += nr
 
                     ofs = n-nr
                     trav += n
@@ -67,10 +65,8 @@ class Mp4Parser:
                             print(">")
                             print(">", code)
                             rc, dat = search_impl(li, n-nr, i+1)
-                            if rc == 1:
-                                return rc, dat
-                            elif rc == 2:
-                                return 1, dat
+                            if rc:
+                                return rc, dat if dat else n-nr
                     else:
                         f.seek(ofs, 1)
                     
@@ -79,19 +75,16 @@ class Mp4Parser:
                         f.seek(-16, 1)
                         print("PEEK", a)
                         print("OVER", trav, "==", maxs)
-                        # print("<", code2, "S("+str(code)+")")
                         break
                     elif trav > maxs:
                         raise Exception("SIZE ERROR %d > %d" % (trav, maxs))
-                    else:
-                        pass
-                        # print(trav, "<", maxs)
+
                     print("Seek", ofs, "--->", code)
                     
                     
                 return 0, None
             else:
-                print("FOUNDFOUND", li[-1])
+                print("FOUND", li[-1])
                 return 1, None
         def parse_path(p: str):
             tok0 = p.split()
@@ -119,16 +112,24 @@ class Mp4Parser:
         rc, dat = search_impl(pp, maxs)
         return rc, dat
 
+import string
+if __name__=="__main__":
 
-with open("vid.mp4", "rb") as f:
-    par = Mp4Parser(f)
-    maxs = os.path.getsize(f.name)
-    print("MAX", maxs)
-    rc, dat = par.search("moov trak mdia[hdlr[8=vide]] minf stbl stss", maxs)
-    # rc, dat = par.search("moov trak[mdia hdlr[8=vide]] mdia minf stbl stss", maxs)
-    if rc:
-        samp = f.read(16)
-        f.seek(-16, 1)
-        print(samp)
-    else:
-        print("FAIL")
+    fname = sys.argv[1] if len(sys.argv) > 1 else "vid.mp4"
+
+    with open(fname, "rb") as f:
+        parser = Mp4Parser(f)
+        maxs = os.path.getsize(f.name)
+        
+        path = " ".join(sys.argv[2:]) if len(sys.argv) > 2 else "moov trak mdia[hdlr[8=vide]] minf stbl"
+
+        res, length = parser.search(path, maxs)
+
+        if res:
+            sample = f.read(16)
+            f.seek(-16, 1)
+            print(" ".join("%02x"%b for b in sample), "|", 
+                "".join(chr(c) if chr(c) in string.printable else "." for c in sample))
+            print(f"+{length-16} bytes")
+        else:
+            print("FAIL")
